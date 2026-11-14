@@ -660,7 +660,9 @@ class JalaliX : Cloneable {
 		if (output.contains("a")) output = output.replace("a", ph(meridiem))
 		if (output.contains("X")) output = output.replace("X", ph((getTime() / 1000).toString()))
 		if (output.contains("x")) output = output.replace("x", ph(getTime().toString()))
+
 		placeholders.forEachIndexed { i, v -> output = output.replace("\uE000$i\uE001", v) }
+
 		return if (persian) toPersian(output) else output
 	}
 }
