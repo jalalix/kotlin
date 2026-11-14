@@ -21,6 +21,7 @@ Coordinates: `com.jalalix.kotlin:jalalix:0.1.0`
 ```bash
 ./gradlew test
 ./gradlew publishToMavenLocal
+./gradlew publishToMavenCentral
 ```
 
 ## Timezone
