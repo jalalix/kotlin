@@ -1,0 +1,88 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '2.1.0'
+    id 'java-library'
+    id 'com.vanniktech.maven.publish' version '0.37.0'
+}
+
+group = 'com.jalalix.kotlin'
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.1.0')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+    testImplementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('processTestResources') {
+    from('testdata') {
+        into 'testdata'
+    }
+}
+
+def canSign = (
+    findProperty('signing.gnupg.keyName') != null ||
+    findProperty('signing.keyId') != null ||
+    findProperty('signingInMemoryKey') != null ||
+    System.getenv('ORG_GRADLE_PROJECT_signingInMemoryKey') != null
+)
+
+mavenPublishing {
+    publishToMavenCentral()
+    if (canSign) {
+        signAllPublications()
+    }
+
+    coordinates('com.jalalix.kotlin', 'jalalix', version.toString())
+
+    pom {
+        name = 'JalaliX Kotlin'
+        description = 'Jalali (Persian / Shamsi) calendar for Kotlin / JVM.'
+        inceptionYear = '2025'
+        url = 'https://jalalix.com'
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://opensource.org/licenses/MIT'
+                distribution = 'repo'
+            }
+        }
+        developers {
+            developer {
+                id = 'maklavani'
+                name = 'Hossein Maklavani'
+                url = 'https://github.com/maklavani'
+            }
+        }
+        scm {
+            url = 'https://github.com/jalalix/kotlin'
+            connection = 'scm:git:git://github.com/jalalix/kotlin.git'
+            developerConnection = 'scm:git:ssh://git@github.com/jalalix/kotlin.git'
+        }
+    }
+}
+
+if (canSign && findProperty('signing.gnupg.keyName') != null) {
+    // Prefer gpg CLI so signatures include issuer fingerprint (required by Central).
+    signing {
+        useGpgCmd()
+    }
+}
