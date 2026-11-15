@@ -55,7 +55,7 @@ mavenPublishing {
 
     pom {
         name = 'JalaliX Kotlin'
-        description = 'Jalali (Persian / Shamsi) calendar for Kotlin / JVM.'
+        description = 'Jalali (Persian / Shamsi) calendar for Kotlin / JVM. Sponsor: https://opencollective.com/jalalix'
         inceptionYear = '2025'
         url = 'https://jalalix.com'
         licenses {
@@ -76,6 +76,11 @@ mavenPublishing {
             url = 'https://github.com/jalalix/kotlin'
             connection = 'scm:git:git://github.com/jalalix/kotlin.git'
             developerConnection = 'scm:git:ssh://git@github.com/jalalix/kotlin.git'
+        }
+        withXml {
+            def projectNode = asNode()
+            def props = projectNode.appendNode('properties')
+            props.appendNode('opencollective', 'https://opencollective.com/jalalix')
         }
     }
 }

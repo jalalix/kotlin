@@ -6,7 +6,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException
 import java.time.temporal.TemporalAccessor
 import java.util.Locale
@@ -15,46 +14,87 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
- * Jalali (Persian / Shamsi) calendar on a UTC millisecond instant + IANA [ZoneId].
- * Pure Kotlin / java.time port of @jalalix/typescript — same algorithm and camelCase API.
+ * Jalali (Persian / Shamsi) calendar on a UTC millisecond instant + IANA [ZoneId]. Pure Kotlin /
+ * java.time port of @jalalix/typescript - same algorithm and camelCase API.
  */
 class JalaliX : Cloneable {
 	companion object {
 		@JvmField val persianNumbers = arrayOf("۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹")
+		@JvmField val arabicNumbers = arrayOf("٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩")
 
 		private const val LEAP_YEAR_DIVISION = 0.24219858156
 		private const val FIRST_DAY_OF_WEEK = 6
 		private const val DATE_LENGTH = 86_400_000L
 
-		private val JALALI_PARSE = Pattern.compile(
-			"^(\\d{4})[/-](\\d{1,2})[/-](\\d{1,2})(?:[ T](\\d{1,2}):(\\d{1,2})(?::(\\d{1,2}))?)?$"
-		)
+		private val JALALI_PARSE =
+				Pattern.compile(
+						"^(\\d{4})[/\\-.](\\d{1,2})[/\\-.](\\d{1,2})(?:[ T](\\d{1,2}):(\\d{1,2})(?::(\\d{1,2}))?)?$"
+				)
+
+		private val QUERY_DATE =
+				Pattern.compile(
+						"^(\\d{4})[/\\-.](\\d{1,2})[/\\-.](\\d{1,2})(?:[ T](\\d{1,2}):(\\d{2})(?::(\\d{2}))?(?:Z|[+-]\\d{2}:?\\d{2})?)?"
+				)
+
+		private val FRAC_SECONDS = Pattern.compile("(\\d{2}:\\d{2}:\\d{2})\\.\\d+")
+		private val NAN_PATTERN = Pattern.compile("NaN", Pattern.CASE_INSENSITIVE)
+		private val NUMERIC_STRING = Pattern.compile("^[+-]?\\d+(\\.\\d+)?$")
 
 		private val DATE_ONLY = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$")
 
-		private val WEEK_DAYS_NAMES = arrayOf("شنبه", "یکشنبه", "دوشنبه", "سه شنبه", "چهار شنبه", "پنج شنبه", "جمعه")
+		private val WEEK_DAYS_NAMES =
+				arrayOf("شنبه", "یکشنبه", "دوشنبه", "سه شنبه", "چهار شنبه", "پنج شنبه", "جمعه")
 		private val WEEK_DAYS_LETTERS = arrayOf("ش", "ی", "د", "س", "چ", "پ", "ج")
 
-		private val WEEK_DAYS_GREGORIAN_NAMES = arrayOf(
-			"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-		)
+		private val WEEK_DAYS_GREGORIAN_NAMES =
+				arrayOf(
+						"Sunday",
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Saturday"
+				)
 
 		private val WEEK_DAYS_GREGORIAN_LETTERS = arrayOf("S", "M", "T", "W", "T", "F", "S")
 
-		private val MONTHS_NAMES = arrayOf(
-			"فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-			"مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
-		)
+		private val MONTHS_NAMES =
+				arrayOf(
+						"فروردین",
+						"اردیبهشت",
+						"خرداد",
+						"تیر",
+						"مرداد",
+						"شهریور",
+						"مهر",
+						"آبان",
+						"آذر",
+						"دی",
+						"بهمن",
+						"اسفند"
+				)
 
-		private val MONTHS_GREGORIAN_NAMES = arrayOf(
-			"January", "February", "March", "April", "May", "June",
-			"July", "August", "September", "October", "November", "December"
-		)
+		private val MONTHS_GREGORIAN_NAMES =
+				arrayOf(
+						"January",
+						"February",
+						"March",
+						"April",
+						"May",
+						"June",
+						"July",
+						"August",
+						"September",
+						"October",
+						"November",
+						"December"
+				)
 
 		private fun hostTimezone(): String = ZoneId.systemDefault().id
 
 		private fun dateUtc(y: Int, m: Int, d: Int, h: Int, mi: Int, s: Int): Long =
-			LocalDateTime.of(y, m, d, h, mi, s).toInstant(ZoneOffset.UTC).toEpochMilli()
+				LocalDateTime.of(y, m, d, h, mi, s).toInstant(ZoneOffset.UTC).toEpochMilli()
 
 		private fun parseIsoString(value: String): Long {
 			val s = value.trim()
@@ -67,10 +107,14 @@ class JalaliX : Cloneable {
 				if (s.endsWith("Z", true)) return Instant.parse(s).toEpochMilli()
 
 				if (s.contains("T")) {
-					try { return Instant.parse(s).toEpochMilli() } catch (_: DateTimeParseException) {}
+					try {
+						return Instant.parse(s).toEpochMilli()
+					} catch (_: DateTimeParseException) {}
 
 					try {
-						return java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(s, Instant::from).toEpochMilli()
+						return java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME
+								.parse(s, Instant::from)
+								.toEpochMilli()
 					} catch (_: DateTimeParseException) {}
 
 					val ldt = LocalDateTime.parse(s)
@@ -84,16 +128,18 @@ class JalaliX : Cloneable {
 			}
 		}
 
-		private fun parseInput(date: Any): Long = when (date) {
-			is Number -> date.toLong()
-			is JalaliX -> date.getTime()
-			is Instant -> date.toEpochMilli()
-			is TemporalAccessor -> Instant.from(date).toEpochMilli()
-			is String -> parseIsoString(date)
-			else -> throw IllegalArgumentException("JalaliX.create: unsupported date type")
-		}
+		private fun parseInput(date: Any): Long =
+				when (date) {
+					is Number -> date.toLong()
+					is JalaliX -> date.getTime()
+					is Instant -> date.toEpochMilli()
+					is TemporalAccessor -> Instant.from(date).toEpochMilli()
+					is String -> parseIsoString(date)
+					else -> throw IllegalArgumentException("JalaliX.create: unsupported date type")
+				}
 
-		@JvmStatic @JvmOverloads
+		@JvmStatic
+		@JvmOverloads
 		fun create(date: Any, options: JalaliOptions? = null): JalaliX {
 			var output = JalaliX(parseInput(date))
 
@@ -102,12 +148,16 @@ class JalaliX : Cloneable {
 			return output
 		}
 
-		@JvmStatic @JvmOverloads
+		@JvmStatic
+		@JvmOverloads
 		fun parseJalali(value: String, options: JalaliOptions? = null): JalaliX {
 			val normalized = fromPersian(value).trim()
 			val match = JALALI_PARSE.matcher(normalized)
 
-			if (!match.matches()) throw IllegalArgumentException("JalaliX.parseJalali: invalid Jalali date \"$value\"")
+			if (!match.matches())
+					throw IllegalArgumentException(
+							"JalaliX.parseJalali: invalid Jalali date \"$value\""
+					)
 
 			val year = match.group(1).toInt()
 			val month = match.group(2).toInt()
@@ -117,7 +167,9 @@ class JalaliX : Cloneable {
 			val seconds = match.group(6)?.toInt() ?: 0
 
 			if (month !in 1..12 || day !in 1..31) {
-				throw IllegalArgumentException("JalaliX.parseJalali: invalid Jalali date \"$value\"")
+				throw IllegalArgumentException(
+						"JalaliX.parseJalali: invalid Jalali date \"$value\""
+				)
 			}
 
 			val output = create(System.currentTimeMillis(), options)
@@ -128,11 +180,18 @@ class JalaliX : Cloneable {
 		}
 
 		@JvmStatic
-		fun isValidDate(date: Any?): Boolean = when (date) {
-			is JalaliX, is Instant, is Number -> true
-			is TemporalAccessor -> try { Instant.from(date); true } catch (_: Exception) { false }
-			else -> false
-		}
+		fun isValidDate(date: Any?): Boolean =
+				when (date) {
+					is JalaliX, is Instant, is Number -> true
+					is TemporalAccessor ->
+							try {
+								Instant.from(date)
+								true
+							} catch (_: Exception) {
+								false
+							}
+					else -> false
+				}
 
 		@JvmStatic
 		fun toPersian(str: String): String {
@@ -147,23 +206,146 @@ class JalaliX : Cloneable {
 		fun fromPersian(str: String): String {
 			var out = str
 
-			for (i in 0..9) out = out.replace(persianNumbers[i], i.toString())
+			for (i in 0..9) {
+				out = out.replace(persianNumbers[i], i.toString())
+				out = out.replace(arabicNumbers[i], i.toString())
+			}
 
 			return out
 		}
 
+		/**
+		 * Soft-normalizes loose query / form date inputs into a Gregorian `Y-m-d H:i:s` string.
+		 * Year band [jalaliYearMin, jalaliYearMax] (default 1..1899) selects Jalali when valid.
+		 */
 		@JvmStatic
-		fun compare(date: JalaliX, comparing: JalaliX): Boolean = date.getTime() < comparing.getTime()
+		@JvmOverloads
+		fun normalizeQueryDate(value: Any?, options: JalaliQueryOptions? = null): Any? {
+			if (value == null) return null
+
+			if (value is String) {
+				if (value == "null" ||
+								value.isEmpty() ||
+								value == "undefined" ||
+								value.equals("invalid date", ignoreCase = true) ||
+								NAN_PATTERN.matcher(value).find()
+				) {
+					return null
+				}
+			}
+
+			if (value is Number) return normalizeQueryTimestamp(value.toLong(), options)
+
+			if (value !is String) return value
+
+			val trimmed = value.trim()
+			if (trimmed.isNotEmpty() && NUMERIC_STRING.matcher(trimmed).matches()) {
+				return normalizeQueryTimestamp(trimmed.toDouble().toLong(), options)
+			}
+
+			var digits = fromPersian(value)
+			digits = FRAC_SECONDS.matcher(digits).replaceAll("$1")
+			val match = QUERY_DATE.matcher(digits)
+			if (!match.find() || match.start() != 0) return digits
+
+			val year = match.group(1).toInt()
+			val month = match.group(2).toInt()
+			val day = match.group(3).toInt()
+			val hour = match.group(4)?.toInt() ?: 0
+			val minute = match.group(5)?.toInt() ?: 0
+			val second = match.group(6)?.toInt() ?: 0
+			val jalaliYearMin = options?.jalaliYearMin ?: 1
+			val jalaliYearMax = options?.jalaliYearMax ?: 1899
+
+			if (year in jalaliYearMin..jalaliYearMax && isValidJalaliCivilDate(year, month, day)) {
+				val jalaliStr =
+						String.format(
+								"%04d/%02d/%02d %02d:%02d:%02d",
+								year,
+								month,
+								day,
+								hour,
+								minute,
+								second
+						)
+				try {
+					val opts = options?.timezone?.let { JalaliOptions(it) }
+					return parseJalali(jalaliStr, opts)
+							.format("YYYY-MM-DD HH:mm:ss", JalaliFormatOptions.gregorian())
+				} catch (_: IllegalArgumentException) {
+					// fall through
+				}
+			}
+
+			if (isValidGregorianDate(year, month, day)) {
+				return String.format(
+						"%04d-%02d-%02d %02d:%02d:%02d",
+						year,
+						month,
+						day,
+						hour,
+						minute,
+						second
+				)
+			}
+
+			return digits
+		}
+
+		private fun normalizeQueryTimestamp(
+				timestamp: Long,
+				options: JalaliQueryOptions?
+		): String? {
+			var ts = timestamp
+			if (ts > 9_999_999_999L) ts /= 1000
+			if (ts <= 0) return null
+			val opts = options?.timezone?.let { JalaliOptions(it) }
+			return create(ts * 1000, opts)
+					.format("YYYY-MM-DD HH:mm:ss", JalaliFormatOptions.gregorian())
+		}
+
+		private fun isValidJalaliCivilDate(year: Int, month: Int, day: Int): Boolean {
+			if (year < 1 || month !in 1..12 || day < 1) return false
+			if (month <= 6) return day <= 31
+			if (month <= 11) return day <= 30
+			val checkYear = (year + 2346) * LEAP_YEAR_DIVISION
+			val isLeap = checkYear - kotlin.math.truncate(checkYear) < LEAP_YEAR_DIVISION
+			return day <= if (isLeap) 30 else 29
+		}
+
+		private fun isValidGregorianDate(year: Int, month: Int, day: Int): Boolean {
+			if (month !in 1..12 || day < 1) return false
+			return try {
+				LocalDate.of(year, month, day)
+				true
+			} catch (_: DateTimeException) {
+				false
+			}
+		}
+
+		@JvmStatic
+		fun compare(date: JalaliX, comparing: JalaliX): Boolean =
+				date.getTime() < comparing.getTime()
 	}
 
 	private class WallParts {
-		var year = 0; var month = 0; var day = 0
-		var hour = 0; var minute = 0; var second = 0; var ms = 0
+		var year = 0
+		var month = 0
+		var day = 0
+		var hour = 0
+		var minute = 0
+		var second = 0
+		var ms = 0
 	}
 
 	private class JalaliDate {
-		var year = 1348; var month = 10; var day = 11
-		var hours = 0; var min = 0; var sec = 0; var ms = 0
+		var year = 1348
+		var month = 10
+		var day = 11
+		var hours = 0
+		var min = 0
+		var sec = 0
+		var ms = 0
 		var isLeapYear = false
 	}
 
@@ -176,11 +358,21 @@ class JalaliX : Cloneable {
 	private val amGregorian = "AM"
 	private val pmGregorian = "PM"
 
-	constructor() { time = System.currentTimeMillis() }
-	constructor(epochMs: Long) { time = epochMs }
-	constructor(isoOrDate: String) { time = parseInput(isoOrDate) }
-	constructor(instant: Instant) { time = instant.toEpochMilli() }
-	constructor(temporal: TemporalAccessor) { time = Instant.from(temporal).toEpochMilli() }
+	constructor() {
+		time = System.currentTimeMillis()
+	}
+	constructor(epochMs: Long) {
+		time = epochMs
+	}
+	constructor(isoOrDate: String) {
+		time = parseInput(isoOrDate)
+	}
+	constructor(instant: Instant) {
+		time = instant.toEpochMilli()
+	}
+	constructor(temporal: TemporalAccessor) {
+		time = Instant.from(temporal).toEpochMilli()
+	}
 
 	private fun zoneId(): ZoneId = ZoneId.of(timezone)
 
@@ -188,8 +380,12 @@ class JalaliX : Cloneable {
 		val z = Instant.ofEpochMilli(time).atZone(zoneId())
 
 		return WallParts().also {
-			it.year = z.year; it.month = z.monthValue; it.day = z.dayOfMonth
-			it.hour = z.hour; it.minute = z.minute; it.second = z.second
+			it.year = z.year
+			it.month = z.monthValue
+			it.day = z.dayOfMonth
+			it.hour = z.hour
+			it.minute = z.minute
+			it.second = z.second
 			it.ms = Math.floorMod(time, 1000)
 		}
 	}
@@ -201,7 +397,15 @@ class JalaliX : Cloneable {
 
 		for (i in 0 until 14) {
 			val parts = Instant.ofEpochMilli(utc).atZone(zone)
-			val got = dateUtc(parts.year, parts.monthValue, parts.dayOfMonth, parts.hour, parts.minute, parts.second)
+			val got =
+					dateUtc(
+							parts.year,
+							parts.monthValue,
+							parts.dayOfMonth,
+							parts.hour,
+							parts.minute,
+							parts.second
+					)
 			val diff = want - got
 			if (diff == 0L) break
 			utc += diff
@@ -216,20 +420,30 @@ class JalaliX : Cloneable {
 			val civilDay = dateUtc(wall.year, wall.month, wall.day, 0, 0, 0) / DATE_LENGTH
 			val baseDay = dateUtc(1970, 1, 1, 0, 0, 0) / DATE_LENGTH
 			val diffDays = civilDay - baseDay
-			jalali.year = 1348; jalali.month = 10; jalali.day = 11
+			jalali.year = 1348
+			jalali.month = 10
+			jalali.day = 11
 
 			if (diffDays > 0) {
 				for (i in 0 until diffDays) {
 					jalali.day++
 
 					when {
-						jalali.month < 7 && jalali.day > 31 -> { jalali.month++; jalali.day = 1 }
-						jalali.month in 7..11 && jalali.day > 30 -> { jalali.month++; jalali.day = 1 }
+						jalali.month < 7 && jalali.day > 31 -> {
+							jalali.month++
+							jalali.day = 1
+						}
+						jalali.month in 7..11 && jalali.day > 30 -> {
+							jalali.month++
+							jalali.day = 1
+						}
 						jalali.month == 12 -> {
 							val leap = checkLeapYear(jalali.year)
 
 							if ((leap && jalali.day > 30) || (!leap && jalali.day > 29)) {
-								jalali.year++; jalali.month = 1; jalali.day = 1
+								jalali.year++
+								jalali.month = 1
+								jalali.day = 1
 							}
 						}
 					}
@@ -241,18 +455,27 @@ class JalaliX : Cloneable {
 					if (jalali.day < 1) {
 						when {
 							jalali.month == 1 -> {
-								jalali.year--; jalali.month = 12
+								jalali.year--
+								jalali.month = 12
 								jalali.day = if (checkLeapYear(jalali.year)) 30 else 29
 							}
-
-							jalali.month < 8 -> { jalali.month--; jalali.day = 31 }
-							jalali.month < 13 -> { jalali.month--; jalali.day = 30 }
+							jalali.month < 8 -> {
+								jalali.month--
+								jalali.day = 31
+							}
+							jalali.month < 13 -> {
+								jalali.month--
+								jalali.day = 30
+							}
 						}
 					}
 				}
 			}
 
-			jalali.hours = wall.hour; jalali.min = wall.minute; jalali.sec = wall.second; jalali.ms = wall.ms
+			jalali.hours = wall.hour
+			jalali.min = wall.minute
+			jalali.sec = wall.second
+			jalali.ms = wall.ms
 			jalali.isLeapYear = checkLeapYear(jalali.year)
 			isConverted = true
 		}
@@ -264,52 +487,82 @@ class JalaliX : Cloneable {
 		val cur = JalaliDate()
 		var diffDays = 0L
 
-		val after = jDate.year > 1348 || (jDate.year == 1348 && jDate.month >= 10) ||
-			(jDate.year == 1348 && jDate.month == 10 && jDate.day >= 11)
+		val after =
+				jDate.year > 1348 ||
+						(jDate.year == 1348 && jDate.month >= 10) ||
+						(jDate.year == 1348 && jDate.month == 10 && jDate.day >= 11)
 
-		val before = jDate.year < 1348 || (jDate.year == 1348 && jDate.month < 10) ||
-			(jDate.year == 1348 && jDate.month == 10 && jDate.day < 11)
+		val before =
+				jDate.year < 1348 ||
+						(jDate.year == 1348 && jDate.month < 10) ||
+						(jDate.year == 1348 && jDate.month == 10 && jDate.day < 11)
 
 		if (after) {
 			while (!(cur.year == jDate.year && cur.month == jDate.month && cur.day == jDate.day)) {
-				diffDays++; cur.day++
+				diffDays++
+				cur.day++
 
 				when {
-					cur.month < 7 && cur.day > 31 -> { cur.month++; cur.day = 1 }
-					cur.month in 7..11 && cur.day > 30 -> { cur.month++; cur.day = 1 }
+					cur.month < 7 && cur.day > 31 -> {
+						cur.month++
+						cur.day = 1
+					}
+					cur.month in 7..11 && cur.day > 30 -> {
+						cur.month++
+						cur.day = 1
+					}
 					cur.month == 12 -> {
 						val leap = checkLeapYear(cur.year)
 
 						if ((leap && cur.day > 30) || (!leap && cur.day > 29)) {
-							cur.year++; cur.month = 1; cur.day = 1
+							cur.year++
+							cur.month = 1
+							cur.day = 1
 						}
 					}
 				}
 			}
 		} else if (before) {
 			while (!(cur.year == jDate.year && cur.month == jDate.month && cur.day == jDate.day)) {
-				diffDays--; cur.day--
+				diffDays--
+				cur.day--
 
 				if (cur.day < 1) {
 					when {
 						cur.month == 1 -> {
-							cur.year--; cur.month = 12
+							cur.year--
+							cur.month = 12
 							cur.day = if (checkLeapYear(cur.year)) 30 else 29
 						}
-
-						cur.month < 8 -> { cur.month--; cur.day = 31 }
-						cur.month < 13 -> { cur.month--; cur.day = 30 }
+						cur.month < 8 -> {
+							cur.month--
+							cur.day = 31
+						}
+						cur.month < 13 -> {
+							cur.month--
+							cur.day = 30
+						}
 					}
 				}
 			}
 		}
 
-		val wallAsUtc = diffDays * DATE_LENGTH +
-			(jDate.hours * 3600L + jDate.min * 60L + jDate.sec) * 1000L + jDate.ms
+		val wallAsUtc =
+				diffDays * DATE_LENGTH +
+						(jDate.hours * 3600L + jDate.min * 60L + jDate.sec) * 1000L +
+						jDate.ms
 
-			val asUtc = Instant.ofEpochMilli(wallAsUtc).atZone(ZoneOffset.UTC)
+		val asUtc = Instant.ofEpochMilli(wallAsUtc).atZone(ZoneOffset.UTC)
 
-			return wallToUtc(asUtc.year, asUtc.monthValue, asUtc.dayOfMonth, asUtc.hour, asUtc.minute, asUtc.second, asUtc.nano / 1_000_000)
+		return wallToUtc(
+				asUtc.year,
+				asUtc.monthValue,
+				asUtc.dayOfMonth,
+				asUtc.hour,
+				asUtc.minute,
+				asUtc.second,
+				asUtc.nano / 1_000_000
+		)
 	}
 
 	private fun checkLeapYear(year: Int): Boolean {
@@ -323,7 +576,9 @@ class JalaliX : Cloneable {
 
 	private fun reset(): JalaliDate {
 		isConverted = false
-		jalali.year = 1348; jalali.month = 10; jalali.day = 11
+		jalali.year = 1348
+		jalali.month = 10
+		jalali.day = 11
 
 		return toJalali()
 	}
@@ -333,8 +588,19 @@ class JalaliX : Cloneable {
 	private fun getGregorianMonthName(number: Int) = MONTHS_GREGORIAN_NAMES[number - 1]
 
 	private fun getWallWeekday(): Int =
-		Instant.ofEpochMilli(dateUtc(getWallParts().year, getWallParts().month, getWallParts().day, 0, 0, 0))
-			.atZone(ZoneOffset.UTC).dayOfWeek.value % 7
+			Instant.ofEpochMilli(
+							dateUtc(
+									getWallParts().year,
+									getWallParts().month,
+									getWallParts().day,
+									0,
+									0,
+									0
+							)
+					)
+					.atZone(ZoneOffset.UTC)
+					.dayOfWeek
+					.value % 7
 
 	private fun getGregorianDayOfYear(): Int {
 		val wall = getWallParts()
@@ -346,13 +612,19 @@ class JalaliX : Cloneable {
 
 	private fun getGregorianWeekOfYear(): Int {
 		val wall = getWallParts()
-		var d = Instant.ofEpochMilli(dateUtc(wall.year, wall.month, wall.day, 0, 0, 0)).atZone(ZoneOffset.UTC)
+		var d =
+				Instant.ofEpochMilli(dateUtc(wall.year, wall.month, wall.day, 0, 0, 0))
+						.atZone(ZoneOffset.UTC)
 		val utcDay = d.dayOfWeek.value % 7
 		val adjust = 4 - (if (utcDay == 0) 7 else utcDay)
 		d = d.plusDays(adjust.toLong())
 		val yearStart = LocalDate.of(d.year, 1, 1).atStartOfDay(ZoneOffset.UTC)
 
-		return ceil(((d.toInstant().toEpochMilli() - yearStart.toInstant().toEpochMilli()).toDouble() / DATE_LENGTH + 1) / 7.0).toInt()
+		return ceil(
+						((d.toInstant().toEpochMilli() - yearStart.toInstant().toEpochMilli())
+								.toDouble() / DATE_LENGTH + 1) / 7.0
+				)
+				.toInt()
 	}
 
 	private fun getGregorianWeekDayName() = WEEK_DAYS_GREGORIAN_NAMES[getWallWeekday()]
@@ -362,7 +634,9 @@ class JalaliX : Cloneable {
 
 	private fun getUTCTimezone(): String {
 		val wall = getWallParts()
-		val asUtc = dateUtc(wall.year, wall.month, wall.day, wall.hour, wall.minute, wall.second) + wall.ms
+		val asUtc =
+				dateUtc(wall.year, wall.month, wall.day, wall.hour, wall.minute, wall.second) +
+						wall.ms
 		val offsetMin = Math.round((asUtc - time) / 60000.0).toInt()
 		val sign = if (offsetMin >= 0) "+" else "-"
 		val abs = kotlin.math.abs(offsetMin)
@@ -377,27 +651,36 @@ class JalaliX : Cloneable {
 	}
 
 	private fun normalizeJalali(jDate: JalaliDate, yearIn: Int, monthIn: Int, dayIn: Int): Long {
-		var year = yearIn; var month = monthIn; var day = dayIn
+		var year = yearIn
+		var month = monthIn
+		var day = dayIn
 
 		if (month < 1) {
 			val yearDiff = ceil((1 - month) / 12.0).toInt()
-			year -= yearDiff; month = 12 * yearDiff + month
+			year -= yearDiff
+			month = 12 * yearDiff + month
 		} else if (month > 12) {
 			val yearDiff = floor((month - 1) / 12.0).toInt()
-			year += yearDiff; month -= 12 * yearDiff
+			year += yearDiff
+			month -= 12 * yearDiff
 		}
 
 		if (month in 7..11 && day > 30) day = 30
 		else if (month == 12) {
 			val leap = checkLeapYear(year)
-			if (leap && day > 30) day = 30
-			else if (!leap && day > 29) day = 29
+			if (leap && day > 30) day = 30 else if (!leap && day > 29) day = 29
 		}
 
-		val next = JalaliDate().also {
-			it.year = year; it.month = month; it.day = day
-			it.hours = jDate.hours; it.min = jDate.min; it.sec = jDate.sec; it.ms = jDate.ms
-		}
+		val next =
+				JalaliDate().also {
+					it.year = year
+					it.month = month
+					it.day = day
+					it.hours = jDate.hours
+					it.min = jDate.min
+					it.sec = jDate.sec
+					it.ms = jDate.ms
+				}
 
 		time = toGregorian(next)
 		return time
@@ -454,45 +737,66 @@ class JalaliX : Cloneable {
 	fun getMilliseconds() = Math.floorMod(time, 1000)
 	fun getTime() = time
 
-	fun setTime(t: Long): Long { time = t; reset(); return getTime() }
+	fun setTime(t: Long): Long {
+		time = t
+		reset()
+		return getTime()
+	}
 
 	fun setMilliseconds(ms: Int): Long {
 		val wall = getWallParts()
 		time = wallToUtc(wall.year, wall.month, wall.day, wall.hour, wall.minute, wall.second, ms)
-		reset(); return getTime()
+		reset()
+		return getTime()
 	}
 
 	@JvmOverloads
 	fun setSeconds(sec: Int, ms: Int = getWallParts().ms): Long {
 		val wall = getWallParts()
 		time = wallToUtc(wall.year, wall.month, wall.day, wall.hour, wall.minute, sec, ms)
-		reset(); return getTime()
+		reset()
+		return getTime()
 	}
 
 	@JvmOverloads
 	fun setMinutes(min: Int, sec: Int = getWallParts().second, ms: Int = getWallParts().ms): Long {
 		val wall = getWallParts()
 		time = wallToUtc(wall.year, wall.month, wall.day, wall.hour, min, sec, ms)
-		reset(); return getTime()
+		reset()
+		return getTime()
 	}
 
 	@JvmOverloads
-	fun setHours(hours: Int, min: Int = getWallParts().minute, sec: Int = getWallParts().second, ms: Int = getWallParts().ms): Long {
+	fun setHours(
+			hours: Int,
+			min: Int = getWallParts().minute,
+			sec: Int = getWallParts().second,
+			ms: Int = getWallParts().ms
+	): Long {
 		val wall = getWallParts()
 		time = wallToUtc(wall.year, wall.month, wall.day, hours, min, sec, ms)
-		reset(); return getTime()
+		reset()
+		return getTime()
 	}
 
 	fun setDate(date: Int): Long {
-		val j = toJalali(); normalizeDate(date - j.day); reset(); return getTime()
+		val j = toJalali()
+		normalizeDate(date - j.day)
+		reset()
+		return getTime()
 	}
 
 	@JvmOverloads
 	fun setMonth(month: Int, date: Int? = null): Long {
 		var j = toJalali()
-		normalizeJalali(j, j.year, month + 1, j.day); reset()
+		normalizeJalali(j, j.year, month + 1, j.day)
+		reset()
 
-		if (date != null) { j = toJalali(); normalizeDate(date - j.day); reset() }
+		if (date != null) {
+			j = toJalali()
+			normalizeDate(date - j.day)
+			reset()
+		}
 
 		return getTime()
 	}
@@ -500,9 +804,14 @@ class JalaliX : Cloneable {
 	@JvmOverloads
 	fun setFullYear(year: Int, month: Int? = null, date: Int? = null): Long {
 		var j = toJalali()
-		normalizeJalali(j, year, if (month != null) month + 1 else j.month, j.day); reset()
+		normalizeJalali(j, year, if (month != null) month + 1 else j.month, j.day)
+		reset()
 
-		if (date != null) { j = toJalali(); normalizeDate(date - j.day); reset() }
+		if (date != null) {
+			j = toJalali()
+			normalizeDate(date - j.day)
+			reset()
+		}
 
 		return getTime()
 	}
@@ -534,14 +843,20 @@ class JalaliX : Cloneable {
 	}
 
 	fun getDayISO() = ((getDay() + 6) % 7) + 1
-	fun getHoursISO(): Int { val h = getHours(); return if (h > 12) h - 12 else h }
+	fun getHoursISO(): Int {
+		val h = getHours()
+		return if (h > 12) h - 12 else h
+	}
 	fun getMeridiem() = if (toJalali().hours > 12) pm else am
 	private fun getGregorianMeridiem() = if (getHours() >= 12) pmGregorian else amGregorian
 
 	fun getStartOfYear() = addDays(-1 * getDayOfYear() + 1).getStartOfDay()
 	fun getStartOfMonth() = addDays(-1 * getDate() + 1).getStartOfDay()
 	fun getStartOfWeek() = addDays(-1 * getDayISO() + 1).getStartOfDay()
-	fun getStartOfDay(): JalaliX { setHours(0, 0, 0, 0); return this }
+	fun getStartOfDay(): JalaliX {
+		setHours(0, 0, 0, 0)
+		return this
+	}
 
 	fun getEndOfYear(): JalaliX {
 		val lastDay = if (toJalali().isLeapYear) 366 else 365
@@ -560,7 +875,10 @@ class JalaliX : Cloneable {
 	}
 
 	fun getEndOfWeek() = addDays(7 - getDayISO()).getEndOfDay()
-	fun getEndOfDay(): JalaliX { setHours(23, 59, 59, 999); return this }
+	fun getEndOfDay(): JalaliX {
+		setHours(23, 59, 59, 999)
+		return this
+	}
 
 	fun setTimezone(timezone: String?): JalaliX {
 		val output = JalaliX(getTime())
@@ -570,15 +888,29 @@ class JalaliX : Cloneable {
 	}
 
 	fun addYears(year: Int): JalaliX {
-		val j = toJalali(); normalizeJalali(j, j.year + year, j.month, j.day); reset(); return this
+		val j = toJalali()
+		normalizeJalali(j, j.year + year, j.month, j.day)
+		reset()
+		return this
 	}
 
 	fun addMonths(month: Int): JalaliX {
-		val j = toJalali(); normalizeJalali(j, j.year, j.month + month, j.day); reset(); return this
+		val j = toJalali()
+		normalizeJalali(j, j.year, j.month + month, j.day)
+		reset()
+		return this
 	}
 
-	fun addWeeks(weeks: Int): JalaliX { normalizeDate(weeks * 7); reset(); return this }
-	fun addDays(days: Int): JalaliX { normalizeDate(days); reset(); return this }
+	fun addWeeks(weeks: Int): JalaliX {
+		normalizeDate(weeks * 7)
+		reset()
+		return this
+	}
+	fun addDays(days: Int): JalaliX {
+		normalizeDate(days)
+		reset()
+		return this
+	}
 
 	@JvmOverloads
 	fun toISODate(calendar: String = "gregorian"): String {
@@ -591,16 +923,17 @@ class JalaliX : Cloneable {
 
 	@JvmOverloads
 	fun format(str: String, persianDigits: Boolean = false, gregorian: Boolean = false): String =
-		formatInternal(str, persianDigits, gregorian)
+			formatInternal(str, persianDigits, gregorian)
 
 	fun format(str: String, options: JalaliFormatOptions): String =
-		formatInternal(str, options.persianDigits, options.calendar == "gregorian")
+			formatInternal(str, options.persianDigits, options.calendar == "gregorian")
 
 	private fun formatInternal(str: String, persian: Boolean, useGregorian: Boolean): String {
 		val placeholders = mutableListOf<String>()
 
 		fun ph(val_: String): String {
-			placeholders.add(val_); return "\uE000${placeholders.lastIndex}\uE001"
+			placeholders.add(val_)
+			return "\uE000${placeholders.lastIndex}\uE001"
 		}
 
 		var output = str
@@ -610,7 +943,8 @@ class JalaliX : Cloneable {
 		val weekOfYear = if (useGregorian) getGregorianWeekOfYear() else getWeekOfYear()
 		val dayOfYear = if (useGregorian) getGregorianDayOfYear() else getDayOfYear()
 		val date = if (useGregorian) wall.day else getDate()
-		val monthName = if (useGregorian) getGregorianMonthName(month) else getJalaliMonthName(month)
+		val monthName =
+				if (useGregorian) getGregorianMonthName(month) else getJalaliMonthName(month)
 		val weekDayName = if (useGregorian) getGregorianWeekDayName() else getWeekDayName()
 		val weekDayLetter = if (useGregorian) getGregorianWeekDayLetter() else getWeekDayLetter()
 		val meridiem = if (useGregorian) getGregorianMeridiem() else getMeridiem()
@@ -628,7 +962,9 @@ class JalaliX : Cloneable {
 		if (output.contains("DW")) output = output.replace("DW", ph(getDayISO().toString()))
 
 		if (output.contains("dw")) {
-			val dw = if (useGregorian) (if (getWallWeekday() == 0) 7 else getWallWeekday()) else getDay()
+			val dw =
+					if (useGregorian) (if (getWallWeekday() == 0) 7 else getWallWeekday())
+					else getDay()
 			output = output.replace("dw", ph(dw.toString()))
 		}
 
@@ -646,7 +982,12 @@ class JalaliX : Cloneable {
 		if (output.contains("HH")) output = output.replace("HH", ph(addZero(hours)))
 		if (output.contains("H")) output = output.replace("H", ph(hours.toString()))
 
-		val hoursISO = when { hours > 12 -> hours - 12; hours == 0 -> 12; else -> hours }
+		val hoursISO =
+				when {
+					hours > 12 -> hours - 12
+					hours == 0 -> 12
+					else -> hours
+				}
 
 		if (output.contains("hh")) output = output.replace("hh", ph(addZero(hoursISO)))
 		if (output.contains("h")) output = output.replace("h", ph(hoursISO.toString()))
