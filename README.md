@@ -20,10 +20,10 @@ JalaliX.parseJalali("1403/12/07").toISODate() // 2025-02-25
 
 ## Install
 
-Coordinates: `com.jalalix.kotlin:jalalix:0.1.0`
+Coordinates: `com.jalalix.kotlin:jalalix:0.2.0`
 
 ```kotlin
-implementation("com.jalalix.kotlin:jalalix:0.1.0")
+implementation("com.jalalix.kotlin:jalalix:0.2.0")
 ```
 
 ```bash
